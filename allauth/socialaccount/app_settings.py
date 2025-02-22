@@ -154,6 +154,16 @@ class AppSettings:
     def OPENID_CONNECT_URL_PREFIX(self):
         return self._setting("OPENID_CONNECT_URL_PREFIX", "oidc")
 
+    # Auto-connect social accounts with existing user accounts based on email
+    @property
+    def AUTO_CONNECT_BY_EMAIL(self):
+        return self._setting("AUTO_CONNECT_BY_EMAIL", False)
+
+    # Only auto-connect when the email is verified
+    @property
+    def AUTO_CONNECT_VERIFIED_ONLY(self):
+        return self._setting("AUTO_CONNECT_VERIFIED_ONLY", True)
+
 
 _app_settings = AppSettings("SOCIALACCOUNT_")
 

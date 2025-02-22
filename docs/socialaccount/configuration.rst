@@ -97,3 +97,17 @@ Available settings:
   The URL path prefix that is used for all OpenID Connect providers. By default,
   it is set to ``"oidc"``, meaning, an OpenID Connect provider with provider ID
   ``foo`` uses ``/accounts/oidc/foo/login/`` as its login URL.
+
+``SOCIALACCOUNT_AUTO_CONNECT_BY_EMAIL`` (default: ``False``)
+  When enabled, if a user attempts to login with a social account that has an
+  email address matching an existing user account, the social account will be
+  automatically connected to that existing user account. This simplifies the
+  user experience by avoiding the need for manual account connection when
+  email addresses match.
+
+``SOCIALACCOUNT_AUTO_CONNECT_VERIFIED_ONLY`` (default: ``True``)
+  When ``SOCIALACCOUNT_AUTO_CONNECT_BY_EMAIL`` is enabled, this setting controls
+  whether the auto-connection should only occur when the email address from
+  the social account is verified. This adds an extra layer of security by
+  ensuring that only verified email addresses can trigger automatic account
+  connection.
