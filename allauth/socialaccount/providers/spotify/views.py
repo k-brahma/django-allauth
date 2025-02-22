@@ -5,12 +5,10 @@ from allauth.socialaccount.providers.oauth2.views import (
     OAuth2LoginView,
 )
 
-from .provider import SpotifyOAuth2Provider
-
 
 class SpotifyOAuth2Adapter(OAuth2Adapter):
-    provider_id = SpotifyOAuth2Provider.id
-    access_token_url = "https://accounts.spotify.com/api/token"
+    provider_id = "spotify"
+    access_token_url = "https://accounts.spotify.com/api/token"  # nosec
     authorize_url = "https://accounts.spotify.com/authorize"
     profile_url = "https://api.spotify.com/v1/me"
 

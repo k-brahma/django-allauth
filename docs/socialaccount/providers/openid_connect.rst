@@ -10,6 +10,9 @@ standalone OpenID Connect provider:
 
     SOCIALACCOUNT_PROVIDERS = {
         "openid_connect": {
+            # Optional PKCE defaults to False, but may be required by your provider
+            # Can be set globally, or per app (settings).
+            "OAUTH_PKCE_ENABLED": True,
             "APPS": [
                 {
                     "provider_id": "my-server",
@@ -23,6 +26,7 @@ standalone OpenID Connect provider:
                         # If omitted, a method from the the server's
                         # token auth methods list is used
                         "token_auth_method": "client_secret_basic",
+                        "oauth_pkce_enabled": True,
                     },
                 },
                 {
@@ -42,5 +46,5 @@ This configuration example will create two independent provider instances,
 ``My Login Server`` and ``Other Login Server``.
 
 The OpenID Connect callback URL for each configured server is at
-``/accounts/{id}/login/callback/`` where ``{id}`` is the configured app's
+``/accounts/oidc/{id}/login/callback/`` where ``{id}`` is the configured app's
 ``provider_id`` value (``my-server`` or ``other-server`` in the above example).

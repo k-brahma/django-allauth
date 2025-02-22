@@ -1,8 +1,6 @@
 from allauth.socialaccount import app_settings
 from allauth.socialaccount.adapter import get_adapter
-from allauth.socialaccount.providers.amazon_cognito.provider import (
-    AmazonCognitoProvider,
-)
+from allauth.socialaccount.models import SocialToken
 from allauth.socialaccount.providers.oauth2.views import (
     OAuth2Adapter,
     OAuth2CallbackView,
@@ -11,7 +9,7 @@ from allauth.socialaccount.providers.oauth2.views import (
 
 
 class AmazonCognitoOAuth2Adapter(OAuth2Adapter):
-    provider_id = AmazonCognitoProvider.id
+    provider_id = "amazon_cognito"
 
     DOMAIN_KEY_MISSING_ERROR = (
         '"DOMAIN" key is missing in Amazon Cognito configuration.'
@@ -42,9 +40,9 @@ class AmazonCognitoOAuth2Adapter(OAuth2Adapter):
     def profile_url(self):
         return "{}/oauth2/userInfo".format(self.domain)
 
-    def complete_login(self, request, app, access_token, **kwargs):
+    def complete_login(self, request, app, token: SocialToken, **kwargs):
         headers = {
-            "Authorization": "Bearer {}".format(access_token),
+            "Authorization": "Bearer {}".format(token.token),
         }
         extra_data = (
             get_adapter().get_requests_session().get(self.profile_url, headers=headers)

@@ -1,4 +1,5 @@
 """Views for Eventbrite API v3."""
+
 from allauth.socialaccount.adapter import get_adapter
 from allauth.socialaccount.providers.oauth2.views import (
     OAuth2Adapter,
@@ -6,17 +7,14 @@ from allauth.socialaccount.providers.oauth2.views import (
     OAuth2LoginView,
 )
 
-from .provider import EventbriteProvider
-
 
 class EventbriteOAuth2Adapter(OAuth2Adapter):
-
     """OAuth2Adapter for Eventbrite API v3."""
 
-    provider_id = EventbriteProvider.id
+    provider_id = "eventbrite"
 
     authorize_url = "https://www.eventbrite.com/oauth/authorize"
-    access_token_url = "https://www.eventbrite.com/oauth/token"
+    access_token_url = "https://www.eventbrite.com/oauth/token"  # nosec
     profile_url = "https://www.eventbriteapi.com/v3/users/me/"
 
     def complete_login(self, request, app, token, **kwargs):

@@ -26,7 +26,7 @@ need the following in your settings.py::
     ACCOUNT_USER_MODEL_USERNAME_FIELD = None
     ACCOUNT_EMAIL_REQUIRED = True
     ACCOUNT_USERNAME_REQUIRED = False
-    ACCOUNT_AUTHENTICATION_METHOD = 'email'
+    ACCOUNT_LOGIN_METHODS = {'email'}
 
 
 Creating and Populating User instances
@@ -95,7 +95,7 @@ following adapter methods:
 
   - ``get_logout_redirect_url(self, request)``
 
-  - ``get_email_confirmation_redirect_url(self, request)``
+  - ``get_email_verification_redirect_url(self, email_address)``
 
   - ``get_signup_redirect_url(self, request)``
 

@@ -5,12 +5,10 @@ from allauth.socialaccount.providers.oauth2.views import (
     OAuth2LoginView,
 )
 
-from .provider import EveOnlineProvider
-
 
 class EveOnlineOAuth2Adapter(OAuth2Adapter):
-    provider_id = EveOnlineProvider.id
-    access_token_url = "https://login.eveonline.com/oauth/token"
+    provider_id = "eveonline"
+    access_token_url = "https://login.eveonline.com/oauth/token"  # nosec
     authorize_url = "https://login.eveonline.com/oauth/authorize"
     profile_url = "https://login.eveonline.com/oauth/verify"
 

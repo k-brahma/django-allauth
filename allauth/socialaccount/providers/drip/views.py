@@ -1,4 +1,5 @@
 """Views for Drip API."""
+
 from allauth.socialaccount.adapter import get_adapter
 from allauth.socialaccount.providers.oauth2.views import (
     OAuth2Adapter,
@@ -6,17 +7,14 @@ from allauth.socialaccount.providers.oauth2.views import (
     OAuth2LoginView,
 )
 
-from .provider import DripProvider
-
 
 class DripOAuth2Adapter(OAuth2Adapter):
-
     """OAuth2Adapter for Drip API v3."""
 
-    provider_id = DripProvider.id
+    provider_id = "drip"
 
     authorize_url = "https://www.getdrip.com/oauth/authorize"
-    access_token_url = "https://www.getdrip.com/oauth/token"
+    access_token_url = "https://www.getdrip.com/oauth/token"  # nosec
     profile_url = "https://api.getdrip.com/v2/user"
 
     def complete_login(self, request, app, token, **kwargs):

@@ -4,18 +4,20 @@ from django.utils.http import urlencode
 from allauth.account.models import EmailAddress
 from allauth.socialaccount.providers.base import ProviderAccount
 from allauth.socialaccount.providers.oauth2.provider import OAuth2Provider
+from allauth.socialaccount.providers.openid_connect.views import (
+    OpenIDConnectOAuth2Adapter,
+)
 
 
 class OpenIDConnectProviderAccount(ProviderAccount):
-    def to_str(self):
-        dflt = super(OpenIDConnectProviderAccount, self).to_str()
-        return self.account.extra_data.get("name", dflt)
+    pass
 
 
 class OpenIDConnectProvider(OAuth2Provider):
     id = "openid_connect"
     name = "OpenID Connect"
     account_class = OpenIDConnectProviderAccount
+    oauth2_adapter_class = OpenIDConnectOAuth2Adapter
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -28,7 +30,7 @@ class OpenIDConnectProvider(OAuth2Provider):
 
     def wk_server_url(self, url):
         well_known_uri = "/.well-known/openid-configuration"
-        if not url.endswith(well_known_uri):
+        if "/.well-known/" not in url:
             url += well_known_uri
         return url
 
@@ -63,6 +65,8 @@ class OpenIDConnectProvider(OAuth2Provider):
             name=data.get("name"),
             user_id=data.get("user_id"),
             picture=data.get("picture"),
+            last_name=data.get("family_name"),
+            first_name=data.get("given_name"),
         )
 
     def extract_email_addresses(self, data):
@@ -77,6 +81,9 @@ class OpenIDConnectProvider(OAuth2Provider):
                 )
             )
         return addresses
+
+    def get_oauth2_adapter(self, request):
+        return self.oauth2_adapter_class(request, self.app.provider_id)
 
 
 provider_classes = [OpenIDConnectProvider]

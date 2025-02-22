@@ -5,12 +5,10 @@ from allauth.socialaccount.providers.oauth2.views import (
     OAuth2LoginView,
 )
 
-from .provider import DaumProvider
-
 
 class DaumOAuth2Adapter(OAuth2Adapter):
-    provider_id = DaumProvider.id
-    access_token_url = "https://apis.daum.net/oauth2/token"
+    provider_id = "Daum"
+    access_token_url = "https://apis.daum.net/oauth2/token"  # nosec
     authorize_url = "https://apis.daum.net/oauth2/authorize"
     profile_url = "https://apis.daum.net/user/v1/show.json"
 

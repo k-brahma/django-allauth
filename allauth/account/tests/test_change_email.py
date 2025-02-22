@@ -7,7 +7,7 @@ from django.urls import reverse
 import pytest
 from pytest_django.asserts import assertTemplateNotUsed, assertTemplateUsed
 
-from allauth.account.app_settings import AuthenticationMethod
+from allauth.account.app_settings import LoginMethod
 from allauth.account.models import EmailAddress, EmailConfirmationHMAC
 from allauth.account.utils import user_email
 
@@ -58,7 +58,7 @@ def test_ajax_add_invalid(auth_client):
 
 
 def test_ajax_remove_primary(auth_client, user, settings):
-    settings.ACCOUNT_AUTHENTICATION_METHOD = "email"
+    settings.ACCOUNT_LOGIN_METHODS = {"email"}
     resp = auth_client.post(
         reverse("account_email"),
         {"action_remove": "", "email": user.email},
@@ -80,7 +80,7 @@ def test_remove_secondary(auth_client, user, settings, mailoutbox):
         {"action_remove": "", "email": secondary.email},
     )
 
-    assert not EmailAddress.objects.filter(email=secondary.pk).exists()
+    assert not EmailAddress.objects.filter(pk=secondary.pk).exists()
     assertTemplateUsed(resp, "account/messages/email_deleted.txt")
     assert len(mailoutbox) == 1
     assert f"{secondary.email} has been removed" in mailoutbox[0].body
@@ -280,7 +280,10 @@ def test_add_with_reauthentication(auth_client, user, user_password, settings):
     )
     assert not EmailAddress.objects.filter(email="john3@example.org").exists()
     assert resp.status_code == 302
-    assert resp["location"] == reverse("account_reauthenticate") + "?next=%2Femail%2F"
+    assert (
+        resp["location"]
+        == reverse("account_reauthenticate") + "?next=%2Faccounts%2Femail%2F"
+    )
     resp = auth_client.post(resp["location"], {"password": user_password})
     assert EmailAddress.objects.filter(email="john3@example.org").exists()
     assertTemplateUsed(resp, "account/messages/email_confirmation_sent.txt")
@@ -306,15 +309,21 @@ def test_add_not_allowed(
         reverse("account_email"),
         {"action_add": "", "email": email},
     )
-    if prevent_enumeration == "strict":
+    if prevent_enumeration:
         assert resp.status_code == 302
-        EmailAddress.objects.get(
+        email_address = EmailAddress.objects.get(
             email=email,
             user=user,
             verified=False,
             primary=False,
         )
         assertTemplateUsed(resp, "account/messages/email_confirmation_sent.txt")
+        key = EmailConfirmationHMAC(email_address).key
+        resp = auth_client.post(reverse("account_confirm_email", args=[key]))
+        assertTemplateUsed(resp, "account/messages/email_confirmation_failed.txt")
+        assert resp.status_code == 302
+        email_address.refresh_from_db()
+        assert not email_address.verified
     else:
         assert resp.status_code == 200
         assert resp.context["form"].errors == {
@@ -323,29 +332,29 @@ def test_add_not_allowed(
 
 
 @pytest.mark.parametrize(
-    "authentication_method,primary_email,secondary_emails,delete_email,success",
+    "login_methods,primary_email,secondary_emails,delete_email,success",
     [
-        (AuthenticationMethod.EMAIL, "pri@ma.il", ["sec@ma.il"], "pri@ma.il", False),
-        (AuthenticationMethod.EMAIL, "pri@ma.il", ["sec@ma.il"], "sec@ma.il", True),
-        (AuthenticationMethod.EMAIL, "pri@ma.il", [], "pri@ma.il", False),
-        (AuthenticationMethod.USERNAME, "pri@ma.il", ["sec@ma.il"], "pri@ma.il", False),
-        (AuthenticationMethod.USERNAME, "pri@ma.il", ["sec@ma.il"], "sec@ma.il", True),
-        (AuthenticationMethod.USERNAME, "pri@ma.il", [], "pri@ma.il", True),
+        ({LoginMethod.EMAIL}, "pri@ma.il", ["sec@ma.il"], "pri@ma.il", False),
+        ({LoginMethod.EMAIL}, "pri@ma.il", ["sec@ma.il"], "sec@ma.il", True),
+        ({LoginMethod.EMAIL}, "pri@ma.il", [], "pri@ma.il", False),
+        ({LoginMethod.USERNAME}, "pri@ma.il", ["sec@ma.il"], "pri@ma.il", False),
+        ({LoginMethod.USERNAME}, "pri@ma.il", ["sec@ma.il"], "sec@ma.il", True),
+        ({LoginMethod.USERNAME}, "pri@ma.il", [], "pri@ma.il", True),
         (
-            AuthenticationMethod.USERNAME_EMAIL,
+            {LoginMethod.USERNAME, LoginMethod.EMAIL},
             "pri@ma.il",
             ["sec@ma.il"],
             "pri@ma.il",
             False,
         ),
         (
-            AuthenticationMethod.USERNAME_EMAIL,
+            {LoginMethod.USERNAME, LoginMethod.EMAIL},
             "pri@ma.il",
             ["sec@ma.il"],
             "sec@ma.il",
             True,
         ),
-        (AuthenticationMethod.USERNAME_EMAIL, "pri@ma.il", [], "pri@ma.il", True),
+        ({LoginMethod.USERNAME, LoginMethod.EMAIL}, "pri@ma.il", [], "pri@ma.il", True),
     ],
 )
 def test_remove_email(
@@ -355,10 +364,10 @@ def test_remove_email(
     primary_email,
     secondary_emails,
     delete_email,
-    authentication_method,
+    login_methods,
     success,
 ):
-    settings.ACCOUNT_AUTHENTICATION_METHOD = authentication_method
+    settings.ACCOUNT_LOGIN_METHODS = login_methods
     user = user_factory(email=primary_email)
     EmailAddress.objects.bulk_create(
         [
@@ -391,3 +400,43 @@ def test_dont_lookup_invalid_email(auth_client, email, did_look_up):
             {"action_remove": "", "email": email},
         )
         assert gfu_mock.called == did_look_up
+
+
+def test_add_requires_reauthentication(settings, auth_client):
+    settings.ACCOUNT_REAUTHENTICATION_REQUIRED = True
+    resp = auth_client.post(
+        reverse("account_email"),
+        {"action_add": "", "email": "john3@example.org"},
+    )
+    assert not EmailAddress.objects.filter(email="john3@example.org").exists()
+    assert resp["location"].startswith(reverse("account_reauthenticate"))
+
+
+def test_remove_requires_reauthentication(auth_client, user, settings):
+    settings.ACCOUNT_REAUTHENTICATION_REQUIRED = True
+    secondary = EmailAddress.objects.create(
+        email="secondary@email.org", user=user, verified=False, primary=False
+    )
+    resp = auth_client.post(
+        reverse("account_email"),
+        {"action_remove": "", "email": secondary.email},
+    )
+    assert resp["location"].startswith(reverse("account_reauthenticate"))
+    assert EmailAddress.objects.filter(pk=secondary.pk).exists()
+
+
+def test_set_primary_requires_reauthentication(auth_client, user, settings):
+    settings.ACCOUNT_REAUTHENTICATION_REQUIRED = True
+    primary = EmailAddress.objects.get(email=user.email)
+    secondary = EmailAddress.objects.create(
+        email="secondary@email.org", user=user, verified=True, primary=False
+    )
+    resp = auth_client.post(
+        reverse("account_email"),
+        {"action_primary": "", "email": secondary.email},
+    )
+    assert resp["location"].startswith(reverse("account_reauthenticate"))
+    primary.refresh_from_db()
+    secondary.refresh_from_db()
+    assert primary.primary
+    assert not secondary.primary

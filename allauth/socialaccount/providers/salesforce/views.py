@@ -5,11 +5,9 @@ from allauth.socialaccount.providers.oauth2.views import (
     OAuth2LoginView,
 )
 
-from .provider import SalesforceProvider
-
 
 class SalesforceOAuth2Adapter(OAuth2Adapter):
-    provider_id = SalesforceProvider.id
+    provider_id = "salesforce"
 
     @property
     def base_url(self):
@@ -31,7 +29,7 @@ class SalesforceOAuth2Adapter(OAuth2Adapter):
         resp = (
             get_adapter()
             .get_requests_session()
-            .get(self.userinfo_url, params={"oauth_token": token})
+            .get(self.userinfo_url, params={"oauth_token": token.token})
         )
         resp.raise_for_status()
         extra_data = resp.json()

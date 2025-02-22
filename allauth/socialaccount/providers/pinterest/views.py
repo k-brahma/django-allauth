@@ -6,11 +6,9 @@ from allauth.socialaccount.providers.oauth2.views import (
     OAuth2LoginView,
 )
 
-from .provider import PinterestProvider
-
 
 class PinterestOAuth2Adapter(OAuth2Adapter):
-    provider_id = PinterestProvider.id
+    provider_id = "pinterest"
 
     provider_default_url = "api.pinterest.com"
     provider_default_api_version = "v1"
@@ -39,7 +37,7 @@ class PinterestOAuth2Adapter(OAuth2Adapter):
         )
 
     if provider_api_version == "v3":
-        access_token_method = "PUT"
+        access_token_method = "PUT"  # nosec
 
     def complete_login(self, request, app, token, **kwargs):
         response = (

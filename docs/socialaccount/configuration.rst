@@ -83,7 +83,15 @@ Available settings:
   Must be a function accepting a single parameter for the socialaccount object.
 
 ``SOCIALACCOUNT_STORE_TOKENS`` (default: ``False``)
-  Indicates whether or not the access tokens are stored in the database.
+  Indicates whether or not the access tokens are stored in the database. Note that
+  tokens can only be stored if the related social account is stored as well, which
+  is not the case when you are using ``SOCIALACCOUNT_EMAIL_AUTHENTICATION`` without
+  ``SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT``.
+
+``SOCIALACCOUNT_ONLY`` (default: ``False``)
+  When enabled (``True``), all functionality with regard to local accounts is
+  disabled, and users will only be able to authenticate using third-party
+  providers.
 
 ``SOCIALACCOUNT_OPENID_CONNECT_URL_PREFIX`` (default: ``"oidc"``)
   The URL path prefix that is used for all OpenID Connect providers. By default,

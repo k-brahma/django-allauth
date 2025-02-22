@@ -5,12 +5,9 @@ from allauth.socialaccount.providers.oauth2.views import (
     OAuth2LoginView,
 )
 
-from .provider import PaypalProvider
-
 
 class PaypalOAuth2Adapter(OAuth2Adapter):
-    provider_id = PaypalProvider.id
-    supports_state = False
+    provider_id = "paypal"
 
     @property
     def authorize_url(self):
@@ -40,7 +37,7 @@ class PaypalOAuth2Adapter(OAuth2Adapter):
             .get_requests_session()
             .post(
                 self.profile_url,
-                params={"schema": "openid", "access_token": token},
+                params={"schema": "openid", "access_token": token.token},
             )
         )
         extra_data = response.json()

@@ -1,15 +1,19 @@
 import warnings
+from enum import Enum
+from typing import FrozenSet, Set, Union
 
-from django.core.exceptions import ImproperlyConfigured
 
-
-class AppSettings(object):
-    class AuthenticationMethod:
+class AppSettings:
+    class AuthenticationMethod(str, Enum):
         USERNAME = "username"
         EMAIL = "email"
         USERNAME_EMAIL = "username_email"
 
-    class EmailVerificationMethod:
+    class LoginMethod(str, Enum):
+        USERNAME = "username"
+        EMAIL = "email"
+
+    class EmailVerificationMethod(str, Enum):
         # After signing up, keep the user account inactive until the email
         # address is verified
         MANDATORY = "mandatory"
@@ -20,44 +24,7 @@ class AppSettings(object):
         NONE = "none"
 
     def __init__(self, prefix):
-        from django.conf import settings
-
         self.prefix = prefix
-        # If login is by email, email must be required
-        assert (
-            not self.AUTHENTICATION_METHOD == self.AuthenticationMethod.EMAIL
-        ) or self.EMAIL_REQUIRED
-        # If login includes email, login must be unique
-        assert (
-            self.AUTHENTICATION_METHOD == self.AuthenticationMethod.USERNAME
-        ) or self.UNIQUE_EMAIL
-        assert (
-            self.EMAIL_VERIFICATION != self.EmailVerificationMethod.MANDATORY
-        ) or self.EMAIL_REQUIRED
-        if not self.USER_MODEL_USERNAME_FIELD:
-            assert not self.USERNAME_REQUIRED
-            assert self.AUTHENTICATION_METHOD not in (
-                self.AuthenticationMethod.USERNAME,
-                self.AuthenticationMethod.USERNAME_EMAIL,
-            )
-        if self.MAX_EMAIL_ADDRESSES is not None:
-            assert self.MAX_EMAIL_ADDRESSES > 0
-        if self.CHANGE_EMAIL:
-            if self.MAX_EMAIL_ADDRESSES is not None and self.MAX_EMAIL_ADDRESSES != 2:
-                raise ImproperlyConfigured(
-                    "Invalid combination of ACCOUNT_CHANGE_EMAIL and ACCOUNT_MAX_EMAIL_ADDRESSES"
-                )
-        if hasattr(settings, "ACCOUNT_LOGIN_ATTEMPTS_LIMIT") or hasattr(
-            settings, "ACCOUNT_LOGIN_ATTEMPTS_TIMEOUT"
-        ):
-            warnings.warn(
-                "settings.ACCOUNT_LOGIN_ATTEMPTS_LIMIT/TIMEOUT is deprecated, use: settings.ACCOUNT_RATE_LIMITS['login_failed']"
-            )
-
-        if hasattr(settings, "ACCOUNT_EMAIL_CONFIRMATION_COOLDOWN"):
-            warnings.warn(
-                "settings.ACCOUNT_EMAIL_CONFIRMATION_COOLDOWN is deprecated, use: settings.ACCOUNT_RATE_LIMITS['confirm_email']"
-            )
 
     def _setting(self, name, dflt):
         from allauth.utils import get_setting
@@ -110,7 +77,12 @@ class AppSettings(object):
         """
         The user is required to hand over an email address when signing up
         """
-        return self._setting("EMAIL_REQUIRED", False)
+        warnings.warn(
+            "app_settings.EMAIL_REQUIRED is deprecated, use: app_settings.SIGNUP_FIELDS['email']['required']",
+            stacklevel=2,
+        )
+        email = self.SIGNUP_FIELDS.get("email")
+        return email and email["required"]
 
     @property
     def EMAIL_VERIFICATION(self):
@@ -123,7 +95,19 @@ class AppSettings(object):
             ret = self.EmailVerificationMethod.MANDATORY
         elif ret is False:
             ret = self.EmailVerificationMethod.OPTIONAL
-        return ret
+        return self.EmailVerificationMethod(ret)
+
+    @property
+    def EMAIL_VERIFICATION_BY_CODE_ENABLED(self):
+        return self._setting("EMAIL_VERIFICATION_BY_CODE_ENABLED", False)
+
+    @property
+    def EMAIL_VERIFICATION_BY_CODE_MAX_ATTEMPTS(self):
+        return self._setting("EMAIL_VERIFICATION_BY_CODE_MAX_ATTEMPTS", 3)
+
+    @property
+    def EMAIL_VERIFICATION_BY_CODE_TIMEOUT(self):
+        return self._setting("EMAIL_VERIFICATION_BY_CODE_TIMEOUT", 15 * 60)
 
     @property
     def MAX_EMAIL_ADDRESSES(self):
@@ -135,8 +119,32 @@ class AppSettings(object):
 
     @property
     def AUTHENTICATION_METHOD(self):
-        ret = self._setting("AUTHENTICATION_METHOD", self.AuthenticationMethod.USERNAME)
-        return ret
+        warnings.warn(
+            "app_settings.AUTHENTICATION_METHOD is deprecated, use: app_settings.LOGIN_METHODS",
+            stacklevel=2,
+        )
+        methods = self.LOGIN_METHODS
+        if self.LoginMethod.EMAIL in methods and self.LoginMethod.USERNAME in methods:
+            return "username_email"
+        elif self.LoginMethod.EMAIL in methods:
+            return "email"
+        elif self.LoginMethod.USERNAME in methods:
+            return "username"
+        else:
+            raise NotADirectoryError
+
+    @property
+    def LOGIN_METHODS(self) -> FrozenSet[LoginMethod]:
+        methods = self._setting("LOGIN_METHODS", None)
+        if methods is None:
+            auth_method = self._setting(
+                "AUTHENTICATION_METHOD", self.AuthenticationMethod.USERNAME
+            )
+            if auth_method == self.AuthenticationMethod.USERNAME_EMAIL:
+                methods = {self.LoginMethod.EMAIL, self.LoginMethod.USERNAME}
+            else:
+                methods = {self.LoginMethod(auth_method)}
+        return frozenset([self.LoginMethod(m) for m in methods])
 
     @property
     def EMAIL_MAX_LENGTH(self):
@@ -157,15 +165,22 @@ class AppSettings(object):
         """
         Signup email verification
         """
-        return self._setting("SIGNUP_EMAIL_ENTER_TWICE", False)
+        warnings.warn(
+            "app_settings.SIGNUP_EMAIL_ENTER_TWICE is deprecated, use: 'email2' in app_settings.SIGNUP_FIELDS",
+            stacklevel=2,
+        )
+        return "email2" in self.SIGNUP_FIELDS
 
     @property
     def SIGNUP_PASSWORD_ENTER_TWICE(self):
         """
         Signup password verification
         """
-        legacy = self._setting("SIGNUP_PASSWORD_VERIFICATION", True)
-        return self._setting("SIGNUP_PASSWORD_ENTER_TWICE", legacy)
+        warnings.warn(
+            "app_settings.SIGNUP_PASSWORD_ENTER_TWICE is deprecated, use: 'password2' in app_settings.SIGNUP_FIELDS",
+            stacklevel=2,
+        )
+        return "password2" in self.SIGNUP_FIELDS
 
     @property
     def SIGNUP_REDIRECT_URL(self):
@@ -195,10 +210,14 @@ class AppSettings(object):
         login_failed_rl = None
         if attempts_amount and attempts_timeout:
             login_failed_rl = f"10/m/ip,{attempts_amount}/{attempts_timeout}s/key"
-        cooldown = self._setting("EMAIL_CONFIRMATION_COOLDOWN", 3 * 60)
-        confirm_email_rl = None
-        if cooldown:
-            confirm_email_rl = f"1/{cooldown}s/key"
+
+        if self.EMAIL_VERIFICATION_BY_CODE_ENABLED:
+            confirm_email_rl = "1/10s/key"
+        else:
+            cooldown = self._setting("EMAIL_CONFIRMATION_COOLDOWN", 3 * 60)
+            confirm_email_rl = None
+            if cooldown:
+                confirm_email_rl = f"1/{cooldown}s/key"
         ret = {
             # Change password view (for users already logged in)
             "change_password": "5/m/user",
@@ -214,6 +233,8 @@ class AppSettings(object):
             "signup": "20/m/ip",
             # Logins.
             "login": "30/m/ip",
+            # Request a login code: key is the email.
+            "request_login_code": "20/m/ip,3/m/key",
             # Logins.
             "login_failed": login_failed_rl,
             # Confirm email
@@ -237,11 +258,52 @@ class AppSettings(object):
         return self._setting("SIGNUP_FORM_CLASS", None)
 
     @property
+    def SIGNUP_FORM_HONEYPOT_FIELD(self):
+        """
+        Honeypot field name. Empty string or ``None`` will disable honeypot behavior.
+        """
+        return self._setting("SIGNUP_FORM_HONEYPOT_FIELD", None)
+
+    @property
+    def SIGNUP_FIELDS(self) -> dict:
+        fields = self._setting("SIGNUP_FIELDS", None)
+        if not fields:
+            fields = []
+            username = self._setting("USERNAME_REQUIRED", True)
+            email = self._setting("EMAIL_REQUIRED", False)
+            email2 = self._setting("SIGNUP_EMAIL_ENTER_TWICE", False)
+            password2 = self._setting(
+                "SIGNUP_PASSWORD_ENTER_TWICE",
+                self._setting("SIGNUP_PASSWORD_VERIFICATION", True),
+            )
+            if email:
+                fields.append("email*")
+            else:
+                fields.append("email")
+            if email2:
+                fields.append("email2*" if email else "email2")
+            if username:
+                fields.append("username*")
+            fields.append("password1*")
+            if password2:
+                fields.append("password2*")
+        ret = {}
+        for field in fields:
+            f, req, _ = field.partition("*")
+            ret[f] = {"required": bool(req)}
+        return ret
+
+    @property
     def USERNAME_REQUIRED(self):
         """
         The user is required to enter a username when signing up
         """
-        return self._setting("USERNAME_REQUIRED", True)
+        warnings.warn(
+            "app_settings.USERNAME_REQUIRED is deprecated, use: app_settings.SIGNUP_FIELDS['username']['required']",
+            stacklevel=2,
+        )
+        username = self.SIGNUP_FIELDS.get("username")
+        return username and username["required"]
 
     @property
     def USERNAME_MIN_LENGTH(self):
@@ -380,6 +442,18 @@ class AppSettings(object):
         return ret
 
     @property
+    def PASSWORD_RESET_BY_CODE_ENABLED(self):
+        return self._setting("PASSWORD_RESET_BY_CODE_ENABLED", False)
+
+    @property
+    def PASSWORD_RESET_BY_CODE_MAX_ATTEMPTS(self):
+        return self._setting("PASSWORD_RESET_BY_CODE_MAX_ATTEMPTS", 3)
+
+    @property
+    def PASSWORD_RESET_BY_CODE_TIMEOUT(self):
+        return self._setting("PASSWORD_RESET_BY_CODE_TIMEOUT", 3 * 60)
+
+    @property
     def PASSWORD_RESET_TOKEN_GENERATOR(self):
         from allauth.account.forms import EmailAwarePasswordResetTokenGenerator
         from allauth.utils import import_attribute
@@ -406,6 +480,41 @@ class AppSettings(object):
     @property
     def REAUTHENTICATION_REQUIRED(self):
         return self._setting("REAUTHENTICATION_REQUIRED", False)
+
+    @property
+    def LOGIN_BY_CODE_ENABLED(self):
+        return self._setting("LOGIN_BY_CODE_ENABLED", False)
+
+    @property
+    def LOGIN_BY_CODE_MAX_ATTEMPTS(self):
+        return self._setting("LOGIN_BY_CODE_MAX_ATTEMPTS", 3)
+
+    @property
+    def LOGIN_BY_CODE_TIMEOUT(self):
+        return self._setting("LOGIN_BY_CODE_TIMEOUT", 3 * 60)
+
+    @property
+    def LOGIN_TIMEOUT(self):
+        """
+        The maximum allowed time (in seconds) for a login to go through the
+        various login stages. This limits, for example, the time span that the
+        2FA stage remains available.
+        """
+        return self._setting("LOGIN_TIMEOUT", 15 * 60)
+
+    @property
+    def LOGIN_BY_CODE_REQUIRED(self) -> Union[bool, Set[str]]:
+        """
+        When enabled (in case of ``True``), every user logging in is
+        required to input a login confirmation code sent by email.
+        Alternatively, you can specify a set of authentication methods
+        (``"password"``, ``"mfa"``, or ``"socialaccount"``) for which login
+        codes are required.
+        """
+        value = self._setting("LOGIN_BY_CODE_REQUIRED", False)
+        if isinstance(value, bool):
+            return value
+        return set(value)
 
 
 _app_settings = AppSettings("ACCOUNT_")

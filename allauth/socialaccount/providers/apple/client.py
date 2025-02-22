@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+import time
 from urllib.parse import parse_qsl, quote, urlencode
 
 from django.core.exceptions import ImproperlyConfigured
@@ -20,7 +20,7 @@ def jwt_encode(*args, **kwargs):
     return resp
 
 
-class Scope(object):
+class Scope:
     EMAIL = "email"
     NAME = "name"
 
@@ -34,7 +34,7 @@ class AppleOAuth2Client(OAuth2Client):
 
     def generate_client_secret(self):
         """Create a JWT signed with an apple provided private key"""
-        now = datetime.utcnow()
+        now = int(time.time())
         app = get_adapter(self.request).get_app(self.request, "apple")
         if not app.key:
             raise ImproperlyConfigured("Apple 'key' missing")
@@ -46,7 +46,7 @@ class AppleOAuth2Client(OAuth2Client):
             "aud": "https://appleid.apple.com",
             "sub": self.get_client_id(),
             "iat": now,
-            "exp": now + timedelta(hours=1),
+            "exp": now + 60 * 60,
         }
         headers = {"kid": self.consumer_secret, "alg": "ES256"}
         client_secret = jwt_encode(
@@ -86,12 +86,13 @@ class AppleOAuth2Client(OAuth2Client):
             raise OAuth2Error("Error retrieving access token: %s" % resp.content)
         return access_token
 
-    def get_redirect_url(self, authorization_url, extra_params):
+    def get_redirect_url(self, authorization_url, scope, extra_params):
+        scope = self.scope_delimiter.join(set(scope))
         params = {
             "client_id": self.get_client_id(),
             "redirect_uri": self.callback_url,
             "response_mode": "form_post",
-            "scope": self.scope,
+            "scope": scope,
             "response_type": "code id_token",
         }
         if self.state:

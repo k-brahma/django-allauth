@@ -12,6 +12,7 @@ Resources:
 * The Battle.net API forum:
     https://us.battle.net/en/forum/15051532/
 """
+
 from django.conf import settings
 
 from allauth.socialaccount.adapter import get_adapter
@@ -21,8 +22,6 @@ from allauth.socialaccount.providers.oauth2.views import (
     OAuth2CallbackView,
     OAuth2LoginView,
 )
-
-from .provider import BattleNetProvider
 
 
 class Region:
@@ -76,7 +75,8 @@ class BattleNetOAuth2Adapter(OAuth2Adapter):
     Can be any of eu, us, kr, sea, tw or cn
     """
 
-    provider_id = BattleNetProvider.id
+    provider_id = "battlenet"
+
     valid_regions = (
         Region.APAC,
         Region.CN,
@@ -113,25 +113,29 @@ class BattleNetOAuth2Adapter(OAuth2Adapter):
     def battlenet_base_url(self):
         region = self.battlenet_region
         if region == Region.CN:
-            return "https://www.battlenet.com.cn"
-        return "https://%s.battle.net" % (region)
+            return "https://oauth.battlenet.com.cn"
+        return "https://oauth.battle.net"
 
     @property
     def access_token_url(self):
-        return self.battlenet_base_url + "/oauth/token"
+        return self.battlenet_base_url + "/token"
 
     @property
     def authorize_url(self):
-        return self.battlenet_base_url + "/oauth/authorize"
+        return self.battlenet_base_url + "/authorize"
 
     @property
     def profile_url(self):
-        return self.battlenet_base_url + "/oauth/userinfo"
+        return self.battlenet_base_url + "/userinfo"
 
     def complete_login(self, request, app, token, **kwargs):
-        params = {"access_token": token.token}
         response = (
-            get_adapter().get_requests_session().get(self.profile_url, params=params)
+            get_adapter()
+            .get_requests_session()
+            .get(
+                self.profile_url,
+                headers={"authorization": "Bearer %s" % (token.token)},
+            )
         )
         data = _check_errors(response)
 

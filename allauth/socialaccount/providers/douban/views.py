@@ -8,12 +8,11 @@ from allauth.socialaccount.providers.oauth2.views import (
 )
 
 from ..base import ProviderException
-from .provider import DoubanProvider
 
 
 class DoubanOAuth2Adapter(OAuth2Adapter):
-    provider_id = DoubanProvider.id
-    access_token_url = "https://www.douban.com/service/auth2/token"
+    provider_id = "douban"
+    access_token_url = "https://www.douban.com/service/auth2/token"  # nosec
     authorize_url = "https://www.douban.com/service/auth2/auth"
     profile_url = "https://api.douban.com/v2/user/~me"
 
